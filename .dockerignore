@@ -1,0 +1,9 @@
+.git
+readme.md
+README.md
+harness
+argocd
+envs
+scripts
+*.md
+node_modules

@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sq-demo-dev
+resources:
+  - ../../manifests/base
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: harness-ci-argocd-promote-demo
+      environment: dev
+    includeSelectors: false
+images:
+  - name: alexsotoharness/harness-ci-argocd-promote-demo
+    newTag: "bootstrap"
+patches:
+  - target:
+      kind: Deployment
+      name: promote-demo
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: dev
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
+        value: bootstrap

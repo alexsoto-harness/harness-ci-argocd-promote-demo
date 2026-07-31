@@ -1,0 +1,205 @@
+pipeline:
+  name: CI ArgoCD Promote Demo
+  identifier: ci_argocd_promote_demo
+  projectIdentifier: soto_sandbox
+  orgIdentifier: sandbox
+  tags:
+    demo: argocd-promote
+    prospect: squarespace
+  description: >
+    Build once, promote the same image tag Dev → Staging → Prod by updating
+    Git desired state. Plain ArgoCD auto-syncs each environment. Selective
+    stage re-run ≈ Drone build promote.
+  allowStageExecutions: true
+  properties:
+    ci:
+      codebase:
+        connectorRef: ghalexsotoharnessfinegrained
+        repoName: harness-ci-argocd-promote-demo
+        build:
+          type: branch
+          spec:
+            branch: <+input>.default(main)
+  variables:
+    - name: imageTag
+      type: String
+      description: >
+        Image tag to build and/or promote. Full runs default to sequenceId.
+        For Drone-like promote re-runs of Staging/Prod only, pass the prior tag.
+      value: <+input>.default(<+pipeline.sequenceId>)
+  stages:
+    - stage:
+        name: Build
+        identifier: build
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: BuildAndPushDockerRegistry
+                  name: Build and Push
+                  identifier: build_and_push
+                  spec:
+                    connectorRef: dockerhubalexsotoharness
+                    repo: alexsotoharness/harness-ci-argocd-promote-demo
+                    tags:
+                      - <+pipeline.variables.imageTag>
+                    dockerfile: Dockerfile
+                    optimize: true
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: MarkAsFailure
+    - stage:
+        name: Promote Dev
+        identifier: promote_dev
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Run
+                  name: Promote Dev
+                  identifier: promote_dev
+                  spec:
+                    shell: Bash
+                    command: |
+                      chmod +x scripts/promote.sh
+                      export GITHUB_TOKEN="<+secrets.getValue("github_promote_token")>"
+                      ./scripts/promote.sh dev "<+pipeline.variables.imageTag>"
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: MarkAsFailure
+        when:
+          pipelineStatus: Success
+    - stage:
+        name: Approve Staging
+        identifier: approve_staging
+        type: Approval
+        spec:
+          execution:
+            steps:
+              - step:
+                  type: HarnessApproval
+                  name: Approve Staging Promote
+                  identifier: approve_staging
+                  timeout: 1d
+                  spec:
+                    approvalMessage: >
+                      Promote image tag <+pipeline.variables.imageTag> to Staging?
+                      (Creates/merges a Git PR updating envs/staging — ArgoCD syncs after merge.)
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - account._all_account_all_users
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+        when:
+          pipelineStatus: Success
+    - stage:
+        name: Promote Staging
+        identifier: promote_staging
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Run
+                  name: Promote Staging
+                  identifier: promote_staging
+                  spec:
+                    shell: Bash
+                    command: |
+                      chmod +x scripts/promote.sh
+                      export GITHUB_TOKEN="<+secrets.getValue("github_promote_token")>"
+                      ./scripts/promote.sh staging "<+pipeline.variables.imageTag>"
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: MarkAsFailure
+        when:
+          pipelineStatus: Success
+    - stage:
+        name: Approve Prod
+        identifier: approve_prod
+        type: Approval
+        spec:
+          execution:
+            steps:
+              - step:
+                  type: HarnessApproval
+                  name: Approve Prod Promote
+                  identifier: approve_prod
+                  timeout: 1d
+                  spec:
+                    approvalMessage: >
+                      Promote image tag <+pipeline.variables.imageTag> to Prod?
+                      (Creates/merges a Git PR updating envs/prod — ArgoCD syncs after merge.)
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - account._all_account_all_users
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+        when:
+          pipelineStatus: Success
+    - stage:
+        name: Promote Prod
+        identifier: promote_prod
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Run
+                  name: Promote Prod
+                  identifier: promote_prod
+                  spec:
+                    shell: Bash
+                    command: |
+                      chmod +x scripts/promote.sh
+                      export GITHUB_TOKEN="<+secrets.getValue("github_promote_token")>"
+                      ./scripts/promote.sh prod "<+pipeline.variables.imageTag>"
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: MarkAsFailure
+        when:
+          pipelineStatus: Success
