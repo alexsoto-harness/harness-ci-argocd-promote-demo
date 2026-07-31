@@ -83,7 +83,8 @@ while i < len(lines):
     out.append(lines[i])
     if needle in lines[i] and i + 1 < len(lines) and lines[i + 1].lstrip().startswith("value:"):
         indent = lines[i + 1][: len(lines[i + 1]) - len(lines[i + 1].lstrip())]
-        out.append(f"{indent}value: {tag}")
+        # Always quote — numeric tags like 1 must be strings for K8s env values
+        out.append(f'{indent}value: "{tag}"')
         i += 2
         updated = True
         continue
@@ -133,7 +134,7 @@ while i < len(lines):
     out.append(lines[i])
     if needle in lines[i] and i + 1 < len(lines) and lines[i + 1].lstrip().startswith("value:"):
         indent = lines[i + 1][: len(lines[i + 1]) - len(lines[i + 1].lstrip())]
-        out.append(f"{indent}value: {tag}")
+        out.append(f'{indent}value: "{tag}"')
         i += 2
         updated = True
         continue
