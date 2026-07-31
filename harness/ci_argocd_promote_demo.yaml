@@ -110,7 +110,7 @@ pipeline:
                     includePipelineExecutionHistory: true
                     approvers:
                       userGroups:
-                        - account._all_account_all_users
+                        - account._account_all_users
                       minimumCount: 1
                       disallowPipelineExecutor: false
         when:
@@ -166,7 +166,7 @@ pipeline:
                     includePipelineExecutionHistory: true
                     approvers:
                       userGroups:
-                        - account._all_account_all_users
+                        - account._account_all_users
                       minimumCount: 1
                       disallowPipelineExecutor: false
         when:
