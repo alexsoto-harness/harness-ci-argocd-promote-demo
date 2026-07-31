@@ -81,7 +81,7 @@ pipeline:
                     shell: Bash
                     command: |
                       chmod +x scripts/promote.sh
-                      export GITHUB_TOKEN="<+secrets.getValue("github_promote_token")>"
+                      export GITHUB_TOKEN="<+secrets.getValue("gh-alexsoto-harness-fine-grained-token")>"
                       ./scripts/promote.sh dev "<+pipeline.variables.imageTag>"
         failureStrategies:
           - onFailure:
@@ -137,7 +137,7 @@ pipeline:
                     shell: Bash
                     command: |
                       chmod +x scripts/promote.sh
-                      export GITHUB_TOKEN="<+secrets.getValue("github_promote_token")>"
+                      export GITHUB_TOKEN="<+secrets.getValue("gh-alexsoto-harness-fine-grained-token")>"
                       ./scripts/promote.sh staging "<+pipeline.variables.imageTag>"
         failureStrategies:
           - onFailure:
@@ -193,7 +193,7 @@ pipeline:
                     shell: Bash
                     command: |
                       chmod +x scripts/promote.sh
-                      export GITHUB_TOKEN="<+secrets.getValue("github_promote_token")>"
+                      export GITHUB_TOKEN="<+secrets.getValue("gh-alexsoto-harness-fine-grained-token")>"
                       ./scripts/promote.sh prod "<+pipeline.variables.imageTag>"
         failureStrategies:
           - onFailure:

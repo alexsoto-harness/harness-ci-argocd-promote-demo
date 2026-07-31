@@ -54,10 +54,7 @@ No Argo API token is required for Phase 1.
 
 ### 2. Harness secret
 
-Create project (or org) secret **`github_promote_token`** in `sandbox` / `soto_sandbox`:
-
-- Fine-grained PAT (or classic) with **Contents: Read and write** and **Pull requests: Read and write** on this repo
-- Same capability as connector `ghalexsotoharnessfinegrained` if that token already has PR write — you can store that token value as the secret
+Pipeline promote steps use project secret **`gh-alexsoto-harness-fine-grained-token`** in `sandbox` / `soto_sandbox` (contents + pull-requests write on this repo).
 
 ### 3. Import pipeline
 
