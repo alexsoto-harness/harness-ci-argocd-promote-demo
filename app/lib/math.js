@@ -1,7 +1,12 @@
 "use strict";
 
 function add(a, b) {
+  // TI demo: narrow source change — only math-related tests should be selected.
   return Number(a) + Number(b);
+}
+
+function absDiff(a, b) {
+  return Math.abs(Number(a) - Number(b));
 }
 
 function sub(a, b) {
@@ -51,4 +56,4 @@ function factorial(n) {
   return result;
 }
 
-module.exports = { add, sub, mul, div, clamp, sum, avg, isEven, factorial };
+module.exports = { add, absDiff, sub, mul, div, clamp, sum, avg, isEven, factorial };
