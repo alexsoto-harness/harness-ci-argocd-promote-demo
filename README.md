@@ -6,6 +6,7 @@ Squarespace-style **build once, promote same artifact** across **Dev → Staging
 
 ```
 Harness Cloud CI
+  Install → Test Intelligence (+ split) → Coverage upload
   Build → push alexsotoharness/harness-ci-argocd-promote-demo:<tag>
   Update envs/dev     → direct commit → Argo syncs Dev
   Approval
@@ -20,7 +21,9 @@ Selective stage re-run ≈ Drone `build promote … staging|prod`
 
 | Path | Purpose |
 |------|---------|
-| `app/` | Tiny Node/Express web app (shows env + image tag) |
+| `app/` | Node/Express web app + Jest unit tests |
+| `app/lib/` | Testable modules (health, env, html, math, strings, validate) |
+| `app/__tests__/` | Fast units, slow suites (for TI/split demos), gated flaky tests |
 | `Dockerfile` | Multi-stage image → `alexsotoharness/harness-ci-argocd-promote-demo` |
 | `manifests/base/` | Shared Deployment + Service |
 | `envs/{dev,staging,prod}/` | Kustomize overlays (image tag + namespace + `APP_ENV`) |
@@ -56,7 +59,7 @@ No Argo API token is required for Phase 1.
 
 Pipeline promote steps use project secret **`gh-alexsoto-harness-fine-grained-token`** in `sandbox` / `soto_sandbox` (contents + pull-requests write on this repo).
 
-### 3. Import pipeline
+### 3. Import / update pipeline
 
 Reuse existing assets:
 
@@ -64,15 +67,21 @@ Reuse existing assets:
 - GitHub connector: `ghalexsotoharnessfinegrained`
 - Docker Hub connector: `dockerhubalexsotoharness`
 
-Create pipeline from `harness/ci_argocd_promote_demo.yaml` (identifier `ci_argocd_promote_demo`).  
+Create or sync pipeline from `harness/ci_argocd_promote_demo.yaml` (identifier `ci_argocd_promote_demo`).  
 Confirm **Allow selective stage executions** is enabled (set in YAML).
+
+### 4. Test Management / TI prerequisites
+
+- Jest Test Intelligence is **beta** — confirm the sandbox account is enrolled if selection looks wrong.
+- Feature flags (ask Harness Support if missing): `CI_CODE_COVERAGE`, `TI_POLICY_EVALUATION_ENABLED`.
+- Pipeline sets `CI_ENABLE_HCLI_FOR_TESTS=true` on test/coverage steps.
 
 ## Demo checklist
 
-### Full run
+### Full run (promote)
 
-1. Run pipeline on `main` (accept default `imageTag` = sequence id).
-2. **Build** pushes `alexsotoharness/harness-ci-argocd-promote-demo:<tag>`.
+1. Run pipeline on `main` (accept default `imageTag` = sequence id; `flakyTests=off`).
+2. **Build** runs install → intelligent tests (parallelism 4) → coverage upload → image push.
 3. **Promote Dev** commits `envs/dev` tag update → Argo syncs Dev → UI shows env `dev` + tag.
 4. Approve **Staging** → PR merges `envs/staging` → Argo syncs Staging.
 5. Approve **Prod** → PR merges `envs/prod` → Argo syncs Prod.
@@ -87,6 +96,36 @@ Local dry-run:
 
 ```bash
 DRY_RUN=1 ./scripts/promote.sh staging 123
+```
+
+### Test Intelligence + splitting
+
+1. Warm up once on `main` (TI needs history; first run often executes everything).
+2. Open a PR that only changes `app/lib/math.js` (or only a strings helper).
+3. In the **Tests** tab, confirm TI selected a subset related to that change.
+4. Note wall-clock vs serial: Build uses `parallelism: 4` on the Test step (`DEMO_SLOW_MS` default `250` ≈ multi-minute serial suite).
+
+### Code coverage
+
+1. After Build, open the **Coverage** tab (LCOV uploaded via `hcli cov upload`).
+2. Intentionally light coverage on `experimentalFlags` / prod theme branch in `html.js` shows gaps.
+
+### Flaky detection
+
+Harness marks a test **FLAKY** when it **passes and fails on the same commit** (14-day window).
+
+1. Note the commit SHA under test.
+2. Re-run **Build** on that commit with pipeline input `flakyTests=force_fail` (expect failures).
+3. Re-run **Build** again on the **same commit** with `flakyTests=force_pass`.
+4. Open Tests → filter **Flaky** — the `flaky demos` cases should show FLAKY badges.
+
+Local:
+
+```bash
+cd app && npm install
+DEMO_SLOW_MS=0 npm test
+DEMO_SLOW_MS=0 FLAKY_TESTS=force_fail npm test   # fails
+DEMO_SLOW_MS=0 npm run test:coverage
 ```
 
 ## Phase 2 (later)

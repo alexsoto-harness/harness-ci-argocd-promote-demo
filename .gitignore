@@ -4,3 +4,6 @@ npm-debug.log*
 *.local
 .env
 .env.*
+app/coverage/
+app/junit.xml
+app/junit-*.xml
