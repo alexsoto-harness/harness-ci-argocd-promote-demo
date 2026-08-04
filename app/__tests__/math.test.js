@@ -2,6 +2,7 @@
 
 const {
   add,
+  absDiff,
   sub,
   mul,
   div,
@@ -14,6 +15,7 @@ const {
 
 describe("math", () => {
   test("add", () => expect(add(2, 3)).toBe(5));
+  test("absDiff", () => expect(absDiff(9, 4)).toBe(5));
   test("sub", () => expect(sub(9, 4)).toBe(5));
   test("mul", () => expect(mul(3, 4)).toBe(12));
   test("div", () => expect(div(10, 2)).toBe(5));
