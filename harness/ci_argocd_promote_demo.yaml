@@ -46,6 +46,15 @@ pipeline:
         name: Build
         identifier: build
         type: CI
+        variables:
+          - name: CI_ENABLE_RUNTESTV2_JS
+            type: String
+            description: Enable Jest / JS Test Intelligence (beta). Prefer stage-scoped.
+            value: "true"
+          - name: CI_ENABLE_HCLI_FOR_TESTS
+            type: String
+            description: Enable hcli-backed test management / coverage uploads.
+            value: "true"
         spec:
           cloneCodebase: true
           caching:
@@ -73,7 +82,10 @@ pipeline:
                   identifier: intelligent_tests
                   spec:
                     shell: Sh
+                    # Docs still show intelligenceMode; Jest beta also expects intelligence.disabled=false
                     intelligenceMode: true
+                    intelligence:
+                      disabled: false
                     parallelism: 4
                     globs:
                       - "app/**/__tests__/**/*.test.js"
@@ -83,14 +95,18 @@ pipeline:
                         paths:
                           - "app/junit-*.xml"
                     envVariables:
+                      CI_ENABLE_RUNTESTV2_JS: "true"
                       CI_ENABLE_HCLI_FOR_TESTS: "true"
                       FLAKY_TESTS: <+pipeline.variables.flakyTests>
                       DEMO_SLOW_MS: <+pipeline.variables.demoSlowMs>
                       JEST_JUNIT_OUTPUT_DIR: /harness/app
                     command: |-
                       cd app
-                      # TI selects/splits tests; Jest still emits JUnit for Test Management.
+                      # TI agent wraps this command, selects tests, and assigns each shard
+                      # a subset. parallelism: 4 (YAML field above) creates the shards —
+                      # it is NOT passed to Jest. Each shard must write a unique JUnit file.
                       export JEST_JUNIT_OUTPUT_NAME="junit-${HARNESS_NODE_INDEX:-0}.xml"
+                      echo "shard HARNESS_NODE_INDEX=${HARNESS_NODE_INDEX:-unset} HARNESS_NODE_TOTAL=${HARNESS_NODE_TOTAL:-unset}"
                       npx jest \
                         --coverage=false \
                         --reporters=default \
@@ -106,13 +122,15 @@ pipeline:
                       CI_ENABLE_HCLI_FOR_TESTS: "true"
                       FLAKY_TESTS: "off"
                       DEMO_SLOW_MS: "0"
-                      JEST_JUNIT_OUTPUT_DIR: /harness/app
-                      JEST_JUNIT_OUTPUT_NAME: junit-coverage.xml
                     command: |-
                       cd app
-                      # Full suite, no artificial delay — LCOV for Coverage tab.
-                      npm run test:coverage
-                      hcli test-reports upload junit-coverage.xml || hcli test-reports upload junit.xml
+                      # Coverage only — do not re-upload JUnit (avoids duplicate Tests-tab view).
+                      DEMO_SLOW_MS=0 FLAKY_TESTS=off npx jest \
+                        --runInBand \
+                        --coverage \
+                        --coverageReporters=text \
+                        --coverageReporters=lcov \
+                        --reporters=default
                       hcli cov upload --file=coverage/lcov.info
               - step:
                   type: BuildAndPushDockerRegistry
