@@ -41,6 +41,13 @@ pipeline:
         Per-unit delay base (ms) for slow suites. Default 250 (~5 min serial).
         Set 0 for a fast run. Coverage step always forces 0.
       value: <+input>.default(250)
+    - name: testMode
+      type: String
+      description: >
+        ti    = Test step with Intelligence mode (selection + automatic splitting).
+                Requires Jest TI beta active; otherwise every shard runs the full suite.
+        split = Run step with the split_tests binary (pure parallelism, no TI needed).
+      value: <+input>.default(ti).allowedValues(ti,split)
   stages:
     - stage:
         name: Build
@@ -80,8 +87,14 @@ pipeline:
                   type: Test
                   name: Intelligent Tests
                   identifier: intelligent_tests
+                  when:
+                    stageStatus: Success
+                    condition: <+pipeline.variables.testMode> == "ti"
+                  # Splitting inside a Test step is TI's job and is automatic
+                  # (file_timing) once Intelligence mode really engages. Until the
+                  # Jest TI beta is active, raising this only duplicates the suite.
                   strategy:
-                    parallelism: 4
+                    parallelism: 1
                   spec:
                     shell: Sh
                     # Docs still show intelligenceMode; Jest beta also expects intelligence.disabled=false
@@ -119,6 +132,51 @@ pipeline:
                         --reporters=default \
                         --reporters=jest-junit \
                         --passWithNoTests
+              - step:
+                  type: Run
+                  name: Split Tests
+                  identifier: split_tests
+                  when:
+                    stageStatus: Success
+                    condition: <+pipeline.variables.testMode> == "split"
+                  strategy:
+                    parallelism: 4
+                  spec:
+                    shell: Sh
+                    reports:
+                      type: JUnit
+                      spec:
+                        paths:
+                          - "app/junit-split-<+strategy.iteration>.xml"
+                    envVariables:
+                      CI_ENABLE_HCLI_FOR_TESTS: "true"
+                      FLAKY_TESTS: <+pipeline.variables.flakyTests>
+                      DEMO_SLOW_MS: <+pipeline.variables.demoSlowMs>
+                      JEST_JUNIT_OUTPUT_DIR: /harness/app
+                      HARNESS_NODE_INDEX: <+strategy.iteration>
+                      HARNESS_NODE_TOTAL: <+strategy.iterations>
+                    command: |-
+                      # Pure parallelism — no Test Intelligence involved.
+                      # split_tests returns only this shard's files (default file_timing,
+                      # falls back to file_size until timing data exists).
+                      SPLIT=./split_tests
+                      [ -x "$SPLIT" ] || SPLIT=/addon/bin/split_tests
+                      [ -x "$SPLIT" ] || SPLIT=/usr/bin/split_tests
+                      FILES=$("$SPLIT" --glob "app/**/__tests__/**/*.test.js" \
+                        --split-by file_timing \
+                        --split-index "${HARNESS_NODE_INDEX}" \
+                        --split-total "${HARNESS_NODE_TOTAL}")
+                      echo "shard ${HARNESS_NODE_INDEX}/${HARNESS_NODE_TOTAL} files: ${FILES}"
+                      cd app
+                      # split_tests emits repo-root paths; jest runs from app/
+                      RELATIVE=$(echo "${FILES}" | tr ' ' '\n' | sed 's|^app/||' | tr '\n' ' ')
+                      export JEST_JUNIT_OUTPUT_NAME="junit-split-${HARNESS_NODE_INDEX}.xml"
+                      npx jest \
+                        --coverage=false \
+                        --reporters=default \
+                        --reporters=jest-junit \
+                        --passWithNoTests \
+                        ${RELATIVE}
               - step:
                   type: Run
                   name: Coverage upload
