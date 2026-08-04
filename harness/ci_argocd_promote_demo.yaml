@@ -94,7 +94,9 @@ pipeline:
                       type: JUnit
                       spec:
                         paths:
-                          - "app/junit-*.xml"
+                          # Step-level parallelism shares a workspace: do NOT glob junit-*.xml
+                          # or each shard will parse siblings' full-suite reports too.
+                          - "app/junit-<+strategy.iteration>.xml"
                     envVariables:
                       CI_ENABLE_RUNTESTV2_JS: "true"
                       CI_ENABLE_HCLI_FOR_TESTS: "true"
@@ -106,8 +108,10 @@ pipeline:
                       HARNESS_NODE_TOTAL: <+strategy.iterations>
                     command: |-
                       cd app
-                      # strategy.parallelism: 4 (sibling of spec) creates 4 step copies.
-                      # TI assigns each copy a subset of test files. Unique JUnit path per copy.
+                      # strategy.parallelism creates 4 step copies. That alone does NOT
+                      # split tests — the TI agent must hand each copy a file subset.
+                      # If logs say "Ran all test suites" on every shard, TI selection
+                      # did not run (callgraph empty / FULL_RUN / Jest beta inactive).
                       export JEST_JUNIT_OUTPUT_NAME="junit-${HARNESS_NODE_INDEX}.xml"
                       echo "shard index=${HARNESS_NODE_INDEX} total=${HARNESS_NODE_TOTAL}"
                       npx jest \
