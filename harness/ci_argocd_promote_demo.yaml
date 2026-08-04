@@ -156,22 +156,45 @@ pipeline:
                       HARNESS_NODE_INDEX: <+strategy.iteration>
                       HARNESS_NODE_TOTAL: <+strategy.iterations>
                     command: |-
-                      # Pure parallelism — no Test Intelligence involved.
-                      # split_tests returns only this shard's files (default file_timing,
-                      # falls back to file_size until timing data exists).
+                      # Pure parallelism — no Test Intelligence.
+                      # Step-level shards can miss prior-step node_modules; install here.
+                      cd /harness
+                      echo "pwd=$(pwd) tests=$(find app -name '*.test.js' | wc -l)"
+                      cd app && npm install --no-fund --no-audit && cd /harness
+
                       SPLIT=./split_tests
                       [ -x "$SPLIT" ] || SPLIT=/addon/bin/split_tests
                       [ -x "$SPLIT" ] || SPLIT=/usr/bin/split_tests
-                      FILES=$("$SPLIT" --glob "app/**/__tests__/**/*.test.js" \
+
+                      # Prefer Harness splitter (file_timing → file_size). Glob must match
+                      # real paths like app/__tests__/math.test.js (avoid extra **/ between
+                      # app and __tests__, which returned zero files on Cloud).
+                      FILES=$("$SPLIT" --glob "app/__tests__/**/*.test.js" \
                         --split-by file_timing \
                         --split-index "${HARNESS_NODE_INDEX}" \
-                        --split-total "${HARNESS_NODE_TOTAL}")
+                        --split-total "${HARNESS_NODE_TOTAL}" 2>/tmp/split_tests.err || true)
+                      if [ -s /tmp/split_tests.err ]; then
+                        echo "split_tests stderr:"; cat /tmp/split_tests.err
+                      fi
+
+                      # Fallback: round-robin file list if splitter returned nothing
+                      if [ -z "${FILES// }" ]; then
+                        echo "split_tests returned no files; falling back to find round-robin"
+                        FILES=$(find app -name '*.test.js' | sort | \
+                          awk -v i="${HARNESS_NODE_INDEX}" -v n="${HARNESS_NODE_TOTAL}" \
+                            '(NR-1)%n==i {print}' | tr '\n' ' ')
+                      fi
                       echo "shard ${HARNESS_NODE_INDEX}/${HARNESS_NODE_TOTAL} files: ${FILES}"
+                      if [ -z "${FILES// }" ]; then
+                        echo "ERROR: no test files assigned to this shard" >&2
+                        exit 1
+                      fi
+
                       cd app
-                      # split_tests emits repo-root paths; jest runs from app/
-                      RELATIVE=$(echo "${FILES}" | tr ' ' '\n' | sed 's|^app/||' | tr '\n' ' ')
+                      RELATIVE=$(echo "${FILES}" | tr ' ' '\n' | sed '/^$/d; s|^app/||' | tr '\n' ' ')
                       export JEST_JUNIT_OUTPUT_NAME="junit-split-${HARNESS_NODE_INDEX}.xml"
-                      npx jest \
+                      # Use the local install — never npx (it fetched jest@30 without jest-junit)
+                      ./node_modules/.bin/jest \
                         --coverage=false \
                         --reporters=default \
                         --reporters=jest-junit \
