@@ -75,7 +75,8 @@ pipeline:
                     shell: Sh
                     intelligenceMode: true
                     parallelism: 4
-                    globs: "app/**/__tests__/**/*.test.js"
+                    globs:
+                      - "app/**/__tests__/**/*.test.js"
                     reports:
                       type: JUnit
                       spec:
