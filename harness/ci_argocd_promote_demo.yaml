@@ -75,20 +75,21 @@ pipeline:
                     shell: Sh
                     intelligenceMode: true
                     parallelism: 4
-                    globs:
-                      - "app/**/__tests__/**/*.test.js"
+                    globs: "app/**/__tests__/**/*.test.js"
                     reports:
-                      - "app/junit.xml"
-                      - "app/junit-*.xml"
+                      type: JUnit
+                      spec:
+                        paths:
+                          - "app/junit-*.xml"
                     envVariables:
                       CI_ENABLE_HCLI_FOR_TESTS: "true"
                       FLAKY_TESTS: <+pipeline.variables.flakyTests>
                       DEMO_SLOW_MS: <+pipeline.variables.demoSlowMs>
                       JEST_JUNIT_OUTPUT_DIR: /harness/app
-                      JEST_JUNIT_OUTPUT_NAME: junit.xml
                     command: |-
                       cd app
                       # TI selects/splits tests; Jest still emits JUnit for Test Management.
+                      export JEST_JUNIT_OUTPUT_NAME="junit-${HARNESS_NODE_INDEX:-0}.xml"
                       npx jest \
                         --coverage=false \
                         --reporters=default \
