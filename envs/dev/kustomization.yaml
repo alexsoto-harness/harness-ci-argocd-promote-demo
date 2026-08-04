@@ -10,7 +10,7 @@ labels:
     includeSelectors: false
 images:
   - name: alexsotoharness/harness-ci-argocd-promote-demo
-    newTag: "2"
+    newTag: "12"
 patches:
   - target:
       kind: Deployment
@@ -21,4 +21,4 @@ patches:
         value: dev
       - op: replace
         path: /spec/template/spec/containers/0/env/1/value
-        value: "2"
+        value: "12"
