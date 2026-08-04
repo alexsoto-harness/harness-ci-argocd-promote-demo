@@ -10,6 +10,7 @@ ENV PORT=8080
 COPY --from=deps /app/node_modules ./node_modules
 COPY app/package.json ./
 COPY app/server.js ./
+COPY app/lib ./lib
 USER node
 EXPOSE 8080
 CMD ["node", "server.js"]

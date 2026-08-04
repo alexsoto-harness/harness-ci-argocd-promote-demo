@@ -5,12 +5,26 @@
   "description": "Tiny web app for Harness CI + ArgoCD promote demo",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "jest",
+    "test:ci": "DEMO_SLOW_MS=${DEMO_SLOW_MS:-250} FLAKY_TESTS=${FLAKY_TESTS:-off} jest --runInBand --coverage --coverageReporters=text --coverageReporters=lcov --reporters=default --reporters=jest-junit",
+    "test:coverage": "DEMO_SLOW_MS=0 FLAKY_TESTS=off jest --runInBand --coverage --coverageReporters=text --coverageReporters=lcov --reporters=default --reporters=jest-junit"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-junit": "^16.0.0"
+  },
+  "jest-junit": {
+    "outputDirectory": ".",
+    "outputName": "junit.xml",
+    "ancestorSeparator": " › ",
+    "classNameTemplate": "{filepath}",
+    "titleTemplate": "{classname} › {title}"
   }
 }

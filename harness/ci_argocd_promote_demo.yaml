@@ -9,7 +9,8 @@ pipeline:
   description: >
     Build once, promote the same image tag Dev → Staging → Prod by updating
     Git desired state. Plain ArgoCD auto-syncs each environment. Selective
-    stage re-run ≈ Drone build promote.
+    stage re-run ≈ Drone build promote. Build stage also demos Test Intelligence,
+    test splitting, coverage, and flaky detection.
   allowStageExecutions: true
   properties:
     ci:
@@ -27,6 +28,19 @@ pipeline:
         Image tag to build and/or promote. Full runs default to sequenceId.
         For Drone-like promote re-runs of Staging/Prod only, pass the prior tag.
       value: <+input>.default(<+pipeline.sequenceId>)
+    - name: flakyTests
+      type: String
+      description: >
+        Flaky demo mode for Jest: off | force_fail | force_pass | random.
+        Re-run Build twice on the same commit (force_fail then force_pass) to
+        surface FLAKY badges in Test Management.
+      value: <+input>.default(off).allowedValues(off,force_fail,force_pass,random)
+    - name: demoSlowMs
+      type: String
+      description: >
+        Per-unit delay base (ms) for slow suites. Default 250 (~5 min serial).
+        Set 0 for a fast run. Coverage step always forces 0.
+      value: <+input>.default(250)
   stages:
     - stage:
         name: Build
@@ -34,6 +48,8 @@ pipeline:
         type: CI
         spec:
           cloneCodebase: true
+          caching:
+            enabled: true
           platform:
             os: Linux
             arch: Amd64
@@ -42,6 +58,60 @@ pipeline:
             spec: {}
           execution:
             steps:
+              - step:
+                  type: Run
+                  name: Install deps
+                  identifier: install_deps
+                  spec:
+                    shell: Sh
+                    command: |
+                      cd app
+                      npm install
+              - step:
+                  type: Test
+                  name: Intelligent Tests
+                  identifier: intelligent_tests
+                  spec:
+                    shell: Sh
+                    intelligenceMode: true
+                    parallelism: 4
+                    globs:
+                      - "app/**/__tests__/**/*.test.js"
+                    reports:
+                      - "app/junit.xml"
+                      - "app/junit-*.xml"
+                    envVariables:
+                      CI_ENABLE_HCLI_FOR_TESTS: "true"
+                      FLAKY_TESTS: <+pipeline.variables.flakyTests>
+                      DEMO_SLOW_MS: <+pipeline.variables.demoSlowMs>
+                      JEST_JUNIT_OUTPUT_DIR: /harness/app
+                      JEST_JUNIT_OUTPUT_NAME: junit.xml
+                    command: |-
+                      cd app
+                      # TI selects/splits tests; Jest still emits JUnit for Test Management.
+                      npx jest \
+                        --coverage=false \
+                        --reporters=default \
+                        --reporters=jest-junit \
+                        --passWithNoTests
+              - step:
+                  type: Run
+                  name: Coverage upload
+                  identifier: coverage_upload
+                  spec:
+                    shell: Sh
+                    envVariables:
+                      CI_ENABLE_HCLI_FOR_TESTS: "true"
+                      FLAKY_TESTS: "off"
+                      DEMO_SLOW_MS: "0"
+                      JEST_JUNIT_OUTPUT_DIR: /harness/app
+                      JEST_JUNIT_OUTPUT_NAME: junit-coverage.xml
+                    command: |-
+                      cd app
+                      # Full suite, no artificial delay — LCOV for Coverage tab.
+                      npm run test:coverage
+                      hcli test-reports upload junit-coverage.xml || hcli test-reports upload junit.xml
+                      hcli cov upload --file=coverage/lcov.info
               - step:
                   type: BuildAndPushDockerRegistry
                   name: Build and Push
