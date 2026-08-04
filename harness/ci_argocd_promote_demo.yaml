@@ -178,14 +178,14 @@ pipeline:
                       fi
 
                       # Fallback: round-robin file list if splitter returned nothing
-                      if [ -z "${FILES// }" ]; then
+                      if [ -z "$(printf '%s' "$FILES" | tr -d '[:space:]')" ]; then
                         echo "split_tests returned no files; falling back to find round-robin"
                         FILES=$(find app -name '*.test.js' | sort | \
                           awk -v i="${HARNESS_NODE_INDEX}" -v n="${HARNESS_NODE_TOTAL}" \
                             '(NR-1)%n==i {print}' | tr '\n' ' ')
                       fi
                       echo "shard ${HARNESS_NODE_INDEX}/${HARNESS_NODE_TOTAL} files: ${FILES}"
-                      if [ -z "${FILES// }" ]; then
+                      if [ -z "$(printf '%s' "$FILES" | tr -d '[:space:]')" ]; then
                         echo "ERROR: no test files assigned to this shard" >&2
                         exit 1
                       fi
