@@ -80,13 +80,14 @@ pipeline:
                   type: Test
                   name: Intelligent Tests
                   identifier: intelligent_tests
+                  strategy:
+                    parallelism: 4
                   spec:
                     shell: Sh
                     # Docs still show intelligenceMode; Jest beta also expects intelligence.disabled=false
                     intelligenceMode: true
                     intelligence:
                       disabled: false
-                    parallelism: 4
                     globs:
                       - "app/**/__tests__/**/*.test.js"
                     reports:
@@ -100,13 +101,15 @@ pipeline:
                       FLAKY_TESTS: <+pipeline.variables.flakyTests>
                       DEMO_SLOW_MS: <+pipeline.variables.demoSlowMs>
                       JEST_JUNIT_OUTPUT_DIR: /harness/app
+                      # strategy.parallelism sets these; shell can use $HARNESS_NODE_INDEX
+                      HARNESS_NODE_INDEX: <+strategy.iteration>
+                      HARNESS_NODE_TOTAL: <+strategy.iterations>
                     command: |-
                       cd app
-                      # TI agent wraps this command, selects tests, and assigns each shard
-                      # a subset. parallelism: 4 (YAML field above) creates the shards —
-                      # it is NOT passed to Jest. Each shard must write a unique JUnit file.
-                      export JEST_JUNIT_OUTPUT_NAME="junit-${HARNESS_NODE_INDEX:-0}.xml"
-                      echo "shard HARNESS_NODE_INDEX=${HARNESS_NODE_INDEX:-unset} HARNESS_NODE_TOTAL=${HARNESS_NODE_TOTAL:-unset}"
+                      # strategy.parallelism: 4 (sibling of spec) creates 4 step copies.
+                      # TI assigns each copy a subset of test files. Unique JUnit path per copy.
+                      export JEST_JUNIT_OUTPUT_NAME="junit-${HARNESS_NODE_INDEX}.xml"
+                      echo "shard index=${HARNESS_NODE_INDEX} total=${HARNESS_NODE_TOTAL}"
                       npx jest \
                         --coverage=false \
                         --reporters=default \
